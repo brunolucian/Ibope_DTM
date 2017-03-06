@@ -1,5 +1,4 @@
 
-
 # Pacotes
 require(tidyverse)
 require(nnet)
@@ -36,7 +35,7 @@ plot(pc)
 plot(pc, type='l')
 summary(pc)
 
-# Oito primeiras componentes
+# Seis primeiras componentes
 comp <- data.frame(pc$x[,1:6])
 
 # Plot
@@ -57,9 +56,6 @@ plot(1:20, wss, type="b", xlab="Number of Clusters",
 
 # Utilizando o kmens com o k encontrado pelo metodo elbow
 km = kmeans(comp, 10, nstart=100)
-
-# Examine the result of the clustering algorithm
-km
 
 # Quantidade de observacoes por cluster
 sort(table(km$clust))
@@ -85,15 +81,22 @@ train$km.cluster <-  km$cluster
 # Resumo dos dados por cluster
 train[3:26] %>%
   group_by(km.cluster) %>% 
-  summarise_all(.funs = mean)
+  summarise_all(.funs = mean) 
 
 # Aplicando Multilogit para calculo de probabilidade 
 
-mod <- multinom(km.cluster~ ., train[3:26])
+mod <- multinom(km.cluster~ ., train[4:26])
 
 # Aplicando o modelo no grupo de teste
-head(predict(mod, test[3:25], "probs"))
+head(predict(mod, test[4:25], "probs"))
 
+# Codigos: Rio de Janeiro = 330455 e osasco = 353440
+pred.rj <- test[which(test$Código==330455),4:25]
+pred.osaco <- test[which(test$Código==353440),4:25]
+
+# predizendo as probabilidades de inclusão em cada grupo para os 2 exemplos
+predict(mod, pred.rj, "probs")
+predict(mod, pred.osaco, "probs")
 
 ######### DADOS TWITTER
 
@@ -106,6 +109,11 @@ info.tweet$Data <- date(info.tweet$`Data Publicado`)
 info.tweet$Hour <- hour(info.tweet$`Data Publicado`)
 info.tweet$Minute <- minute(info.tweet$`Data Publicado`)
 
+info.tweet %>% 
+  group_by(Data) %>% 
+  count() %>% 
+  arrange(desc(n))
+
 # regex para extrair os nomes dos usuarios dentro dos posts
 regex <- "@([A-Za-z]+[A-Za-z0-9_]+)(?![A-Za-z0-9_]*\\.)"
 
@@ -115,9 +123,7 @@ id.tweet <- str_extract_all(info.tweet$`Corpo Descricao`, regex)
 # Contagem dos usuarios mais mencionados nos post
 sort(table(unlist(id.tweet)))
 
-# str_detect(info.tweet$`Corpo Descricao`, "RT")
-
-
+# Criando vetor com datas de publicacao dos tweets
 dates <- unique(info.tweet$Data)
 
 # Funcao que cria e limpa o corpus para as analises de texto
@@ -131,9 +137,7 @@ cria.corpus <- function(DF){
     tm_map(removeNumbers)
 }
 
-# wordcloud(dfCorpus, max.words = 100, random.order = FALSE)
-
-
+# Criando graficos em barra das frequencias das palavras
 graficos <- list()
 for( i in seq_along(dates)){
   dfCorpus <- info.tweet %>% 
@@ -154,7 +158,13 @@ graficos[[dates[i]]] <-   subset(wf, freq > freq[15]) %>%
 
 }
 
+# Criando grafico para cada uma dos assuntos
+g1 <- grid.arrange(graficos[[dates[7]]], graficos[[dates[6]]], ncol = 1)
+g2 <- grid.arrange(graficos[[dates[5]]], graficos[[dates[4]]], graficos[[dates[3]]], ncol = 1) 
+g3 <- grid.arrange(graficos[[dates[2]]], graficos[[dates[1]]], ncol = 1)
 
-grid.arrange(graficos[[dates[7]]],graficos[[dates[6]]],graficos[[dates[5]]],
-             graficos[[dates[4]]],graficos[[dates[3]]],graficos[[dates[2]]],
-             graficos[[dates[1]]], ncol=3) 
+# Salvando graficos
+ggsave("assuntos_t1.png", g1)
+ggsave("assuntos_t2.png", g2)
+ggsave("assuntos_t3.png", g3)
+
