@@ -6,6 +6,9 @@ require(nnet)
 require(lubridate)
 require(stringr)
 require(tm)
+require(gridExtra)
+library(ggplot2)
+library(ggthemes)
 
 # Lendo arquivo de informacoes municipais
 info.mun <- read_csv2("~/Desktop/Ibope_DTM/Ibope_DTM/informacoes_municipais.csv")
@@ -59,10 +62,10 @@ km = kmeans(comp, 10, nstart=100)
 km
 
 # Quantidade de observacoes por cluster
-sort(table(km2$clust))
+sort(table(km$clust))
 
 # nomes dos clusters
-clust <- names(sort(table(km2$clust)))
+clust <- names(sort(table(km$clust)))
 
 # Municipios de cada cluster
 train[km$clust==clust[1],2]
@@ -94,17 +97,64 @@ head(predict(mod, test[3:25], "probs"))
 
 ######### DADOS TWITTER
 
+# Leitura dos dados
 info.tweet <- read_csv2("~/Desktop/Ibope_DTM/Ibope_DTM/informacoes_twitter.csv")
 
+# Formatacao das variaveis
 info.tweet$`Data Publicado` <- dmy_hm(info.tweet$`Data Publicado`)
 info.tweet$Data <- date(info.tweet$`Data Publicado`)
 info.tweet$Hour <- hour(info.tweet$`Data Publicado`)
 info.tweet$Minute <- minute(info.tweet$`Data Publicado`)
 
+# regex para extrair os nomes dos usuarios dentro dos posts
 regex <- "@([A-Za-z]+[A-Za-z0-9_]+)(?![A-Za-z0-9_]*\\.)"
 
+# extraindo os usuarios dos postas
 id.tweet <- str_extract_all(info.tweet$`Corpo Descricao`, regex)
+
+# Contagem dos usuarios mais mencionados nos post
 sort(table(unlist(id.tweet)))
 
-DocumentTermMatrix(Corpusinfo.tweet$`Corpo Descricao`))
 # str_detect(info.tweet$`Corpo Descricao`, "RT")
+
+
+dates <- unique(info.tweet$Data)
+
+# Funcao que cria e limpa o corpus para as analises de texto
+cria.corpus <- function(DF){
+  dfCorpus <- VCorpus(DataframeSource(DF[3]))
+  dfCorpus <- dfCorpus %>% 
+    tm_map(stripWhitespace) %>% 
+    tm_map(content_transformer(tolower)) %>% 
+    tm_map(removeWords, stopwords("portuguese")) %>% 
+    tm_map(removePunctuation) %>% 
+    tm_map(removeNumbers)
+}
+
+# wordcloud(dfCorpus, max.words = 100, random.order = FALSE)
+
+
+graficos <- list()
+for( i in seq_along(dates)){
+  dfCorpus <- info.tweet %>% 
+    filter(Data == dates[i]) %>% 
+    cria.corpus()  
+  
+  dtm <- DocumentTermMatrix(dfCorpus)
+  freq <- sort(colSums(as.matrix(dtm)), decreasing=TRUE)
+  wf <- data.frame(word=names(freq), freq=freq)
+
+graficos[[dates[i]]] <-   subset(wf, freq > freq[15]) %>%
+    ggplot(aes(reorder(word,-freq), freq)) +
+    geom_bar(stat="identity") +
+    theme(axis.text.x=element_text(angle=90)) +
+  xlab("tópicos") +
+  ylab("")+
+  ggtitle(dates[i])
+
+}
+
+
+grid.arrange(graficos[[dates[7]]],graficos[[dates[6]]],graficos[[dates[5]]],
+             graficos[[dates[4]]],graficos[[dates[3]]],graficos[[dates[2]]],
+             graficos[[dates[1]]], ncol=3) 
